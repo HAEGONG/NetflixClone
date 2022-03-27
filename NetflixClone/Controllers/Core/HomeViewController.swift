@@ -17,6 +17,9 @@ enum Sections: Int {
 
 class HomeViewController: UIViewController {
     
+    private var randomTrendingMovie: Title?
+    private var headerView: HeroHeaderUIView?
+    
     let sectionTitles: [String] = ["Trending Movies", "Popular", "Trending TV", "Upcoming Movies", "Top Rated"]
     
     private let homeFeedTable: UITableView = {
@@ -35,10 +38,24 @@ class HomeViewController: UIViewController {
         homeFeedTable.dataSource = self
         
         configureNavBar()
+        configureHeroHeaderView()
         
-        let headerView = HeroHeaderUIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 450))
+        headerView = HeroHeaderUIView(frame: CGRect(x: 0, y: 0, width: view.bounds.width, height: 450))
         homeFeedTable.tableHeaderView = headerView
         
+    }
+    
+    private func configureHeroHeaderView() {
+        TMDBAPICaller.shared.getTrendingMovies { [weak self] result in
+            switch result {
+            case .success(let titles):
+                let selectedTitle = titles.randomElement()
+                self?.randomTrendingMovie = selectedTitle
+                self?.headerView?.configure(with: TitleViewModel(titleName: selectedTitle?.original_title ?? "", posterURL: selectedTitle?.poster_path ?? ""))
+            case .failure(let error):
+                print(error.localizedDescription)
+            }
+        }
     }
     
     private func configureNavBar() {
@@ -67,7 +84,7 @@ class HomeViewController: UIViewController {
     }
     
     private func getTrendingMovies() {
-        APICaller.shared.getTrendingMovies { results in
+        TMDBAPICaller.shared.getTrendingMovies { results in
             switch results {
             case .success(let movies):
                 print(movies)
@@ -87,7 +104,7 @@ class HomeViewController: UIViewController {
 //        APICaller.shared.getPopularMovies { _ in
 //
 //        }
-        APICaller.shared.getTopRated { _ in
+        TMDBAPICaller.shared.getTopRated { _ in
             
         }
     }
@@ -108,9 +125,11 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
             return UITableViewCell()
         }
         
+        cell.delegate = self
+        
         switch indexPath.section {
         case Sections.TrendingMovies.rawValue:
-            APICaller.shared.getTrendingMovies { result in
+            TMDBAPICaller.shared.getTrendingMovies { result in
                 switch result {
                 case .success(let titles):
                     cell.configure(with: titles)
@@ -119,7 +138,7 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
                 }
             }
         case Sections.TrendingTV.rawValue:
-            APICaller.shared.getTrendingTVs { result in
+            TMDBAPICaller.shared.getTrendingTVs { result in
                 switch result {
                 case .success(let titles):
                     cell.configure(with: titles)
@@ -128,7 +147,7 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
                 }
             }
         case Sections.Popular.rawValue:
-            APICaller.shared.getPopularMovies { result in
+            TMDBAPICaller.shared.getPopularMovies { result in
                 switch result {
                 case .success(let titles):
                     cell.configure(with: titles)
@@ -137,7 +156,7 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
                 }
             }
         case Sections.Upcoming.rawValue:
-            APICaller.shared.getUpcomingMovies { result in
+            TMDBAPICaller.shared.getUpcomingMovies { result in
                 switch result {
                 case .success(let titles):
                     cell.configure(with: titles)
@@ -146,7 +165,7 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
                 }
             }
         case Sections.TopRated.rawValue:
-            APICaller.shared.getTopRated { result in
+            TMDBAPICaller.shared.getTopRated { result in
                 switch result {
                 case .success(let titles):
                     cell.configure(with: titles)
@@ -185,5 +204,16 @@ extension HomeViewController: UITableViewDelegate, UITableViewDataSource {
         let defaultOffset = view.safeAreaInsets.top
         let offset = scrollView.contentOffset.y + defaultOffset
         navigationController?.navigationBar.transform = .init(translationX: 0, y: min(0, -offset))
+    }
+}
+
+extension HomeViewController: CollectionViewTableViewCellDelegate {
+    func collectionViewTableViewCellDidTapCell(_ cell: CollectionViewTableViewCell, viewModel: TitlePreviewViewModel) {
+        DispatchQueue.main.async { [weak self] in
+            let vc = TitlePreviewViewController()
+            vc.configure(with: viewModel)
+            self?.navigationController?.pushViewController(vc, animated: true)
+        }
+        
     }
 }
